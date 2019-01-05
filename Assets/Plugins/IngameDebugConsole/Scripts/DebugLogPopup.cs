@@ -2,222 +2,224 @@
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using System.Collections;
+using TMPro;
 
 // Manager class for the debug popup
-namespace IngameDebugConsole
+public class DebugLogPopup : MonoBehaviour, IPointerClickHandler, IBeginDragHandler, IDragHandler, IEndDragHandler
 {
-	public class DebugLogPopup : MonoBehaviour, IPointerClickHandler, IBeginDragHandler, IDragHandler, IEndDragHandler
+	// Dimensions of the popup divided by 2
+	private Vector2 halfSize;
+
+	[SerializeField]
+	private DebugLogManager debugManager;
+
+	[SerializeField]
+	private RectTransform popupTransform;
+	// Background image that will change color to indicate an alert
+	[SerializeField]
+	private Image backgroundImage;
+	// Canvas group to modify visibility of the popup
+	[SerializeField]
+	private CanvasGroup canvasGroup;
+	[SerializeField]
+	private TextMeshProUGUI newInfoCountText;
+	[SerializeField]
+	private TextMeshProUGUI newWarningCountText;
+	[SerializeField]
+	private TextMeshProUGUI newErrorCountText;
+
+	// Number of new debug entries since the log window has been closed
+	private int newInfoCount = 0, newWarningCount = 0, newErrorCount = 0;
+		
+	private Color normalColor;
+
+	[SerializeField]
+	private Color alertColorInfo;
+	[SerializeField]
+	private Color alertColorWarning;
+	[SerializeField]
+	private Color alertColorError;
+
+	private bool isPopupBeingDragged = false;
+
+	// Coroutines for simple code-based animations
+	private IEnumerator moveToPosCoroutine = null;
+
+	void Awake ()
 	{
-		private RectTransform popupTransform;
+		normalColor = backgroundImage.color;
+	}
 
-		// Dimensions of the popup divided by 2
-		private Vector2 halfSize;
+	void Start ()
+	{
+		halfSize = popupTransform.sizeDelta * 0.5f * popupTransform.root.localScale.x;
+	}
 
-		// Background image that will change color to indicate an alert
-		private Image backgroundImage;
+	public void OnViewportDimensionsChanged ()
+	{
+		halfSize = popupTransform.sizeDelta * 0.5f * popupTransform.root.localScale.x;
+		OnEndDrag(null);
+	}
 
-		// Canvas group to modify visibility of the popup
-		private CanvasGroup canvasGroup;
+	public void NewInfoLogArrived ()
+	{
+		newInfoCount++;
+		newInfoCountText.text = newInfoCount.ToString();
 
-		[SerializeField]
-		private DebugLogManager debugManager;
+		if (newWarningCount == 0 && newErrorCount == 0)
+		{
+			backgroundImage.color = alertColorInfo;
+		}
+	}
 
-		[SerializeField]
-		private Text newInfoCountText;
-		[SerializeField]
-		private Text newWarningCountText;
-		[SerializeField]
-		private Text newErrorCountText;
+	public void NewWarningLogArrived ()
+	{
+		newWarningCount++;
+		newWarningCountText.text = newWarningCount.ToString();
 
-		// Number of new debug entries since the log window has been closed
-		private int newInfoCount = 0, newWarningCount = 0, newErrorCount = 0;
+		if (newErrorCount == 0)
+		{
+			backgroundImage.color = alertColorWarning;
+		}
+	}
+
+	public void NewErrorLogArrived ()
+	{
+		newErrorCount++;
+		newErrorCountText.text = newErrorCount.ToString();
+
+		backgroundImage.color = alertColorError;
+	}
+
+	public void Reset ()
+	{
+		newInfoCount = 0;
+		newWarningCount = 0;
+		newErrorCount = 0;
+
+		newInfoCountText.text = "0";
+		newWarningCountText.text = "0";
+		newErrorCountText.text = "0";
+
+		backgroundImage.color = normalColor;
+	}
 		
-		private Color normalColor;
+	// A simple smooth movement animation
+	private IEnumerator MoveToPosAnimation (Vector3 targetPos)
+	{
+		float modifier = 0f;
+		Vector3 initialPos = popupTransform.position;
 
-		[SerializeField]
-		private Color alertColorInfo;
-		[SerializeField]
-		private Color alertColorWarning;
-		[SerializeField]
-		private Color alertColorError;
-
-		private bool isPopupBeingDragged = false;
-
-		// Coroutines for simple code-based animations
-		private IEnumerator moveToPosCoroutine = null;
-
-		void Awake()
+		while (modifier < 1f)
 		{
-			popupTransform = (RectTransform) transform;
-			backgroundImage = GetComponent<Image>();
-			canvasGroup = GetComponent<CanvasGroup>();
+			modifier += 4f * Time.unscaledDeltaTime;
+			popupTransform.position = Vector3.Lerp(initialPos, targetPos, modifier);
 
-			normalColor = backgroundImage.color;
+			yield return null;
 		}
+	}
 
-		void Start()
+	// Popup is clicked
+	public void OnPointerClick (PointerEventData data)
+	{
+		// Hide the popup and show the log window
+		if (!isPopupBeingDragged)
 		{
-			halfSize = popupTransform.sizeDelta * 0.5f * popupTransform.root.localScale.x;
+			debugManager.PopupTapped();
 		}
-
-		public void OnViewportDimensionsChanged()
-		{
-			halfSize = popupTransform.sizeDelta * 0.5f * popupTransform.root.localScale.x;
-			OnEndDrag( null );
-		}
-
-		public void NewInfoLogArrived()
-		{
-			newInfoCount++;
-			newInfoCountText.text = newInfoCount.ToString();
-
-			if( newWarningCount == 0 && newErrorCount == 0 )
-				backgroundImage.color = alertColorInfo;
-		}
-
-		public void NewWarningLogArrived()
-		{
-			newWarningCount++;
-			newWarningCountText.text = newWarningCount.ToString();
-
-			if( newErrorCount == 0 )
-				backgroundImage.color = alertColorWarning;
-		}
-
-		public void NewErrorLogArrived()
-		{
-			newErrorCount++;
-			newErrorCountText.text = newErrorCount.ToString();
-
-			backgroundImage.color = alertColorError;
-		}
-
-		private void Reset()
-		{
-			newInfoCount = 0;
-			newWarningCount = 0;
-			newErrorCount = 0;
-
-			newInfoCountText.text = "0";
-			newWarningCountText.text = "0";
-			newErrorCountText.text = "0";
-
-			backgroundImage.color = normalColor;
-		}
+	}
 		
-		// A simple smooth movement animation
-		private IEnumerator MoveToPosAnimation( Vector3 targetPos )
-		{
-			float modifier = 0f;
-			Vector3 initialPos = popupTransform.position;
+	// Hides the log window and shows the popup
+	public void Show ()
+	{
+		canvasGroup.interactable = true;
+		canvasGroup.blocksRaycasts = true;
+		canvasGroup.alpha = 1f;
 
-			while( modifier < 1f )
+		// Update position in case resolution changed while hidden
+		OnViewportDimensionsChanged();
+	}
+
+	// Hide the popup
+	public void Hide ()
+	{
+		canvasGroup.interactable = false;
+		canvasGroup.blocksRaycasts = false;
+		canvasGroup.alpha = 0f;
+	}
+
+	public void OnBeginDrag (PointerEventData data)
+	{
+		isPopupBeingDragged = true;
+
+		// If a smooth movement animation is in progress, cancel it
+		if (moveToPosCoroutine != null)
+		{
+			StopCoroutine(moveToPosCoroutine);
+			moveToPosCoroutine = null;
+		}
+	}
+
+	// Reposition the popup
+	public void OnDrag (PointerEventData data)
+	{
+		popupTransform.position = data.position;
+	}
+
+	// Smoothly translate the popup to the nearest edge
+	public void OnEndDrag (PointerEventData data)
+	{
+		int screenWidth = Screen.width;
+		int screenHeight = Screen.height;
+
+		Vector3 pos = popupTransform.position;
+
+		// Find distances to all four edges
+		float distToLeft = pos.x;
+		float distToRight = Mathf.Abs(pos.x - screenWidth);
+
+		float distToBottom = Mathf.Abs(pos.y);
+		float distToTop = Mathf.Abs(pos.y - screenHeight);
+
+		float horDistance = Mathf.Min(distToLeft, distToRight);
+		float vertDistance = Mathf.Min(distToBottom, distToTop);
+
+		// Find the nearest edge's coordinates
+		if (horDistance < vertDistance)
+		{
+			if (distToLeft < distToRight)
 			{
-				modifier += 4f * Time.unscaledDeltaTime;
-				popupTransform.position = Vector3.Lerp( initialPos, targetPos, modifier );
-
-				yield return null;
-			}
-		}
-
-		// Popup is clicked
-		public void OnPointerClick( PointerEventData data )
-		{
-			// Hide the popup and show the log window
-			if( !isPopupBeingDragged )
-			{
-				debugManager.Show();
-				Hide();
-			}
-		}
-		
-		// Hides the log window and shows the popup
-		public void Show()
-		{
-			canvasGroup.interactable = true;
-			canvasGroup.blocksRaycasts = true;
-			canvasGroup.alpha = 1f;
-
-			// Reset the counters
-			Reset();
-
-			// Update position in case resolution changed while hidden
-			OnViewportDimensionsChanged();
-		}
-
-		// Hide the popup
-		public void Hide()
-		{
-			canvasGroup.interactable = false;
-			canvasGroup.blocksRaycasts = false;
-			canvasGroup.alpha = 0f;
-		}
-
-		public void OnBeginDrag( PointerEventData data )
-		{
-			isPopupBeingDragged = true;
-
-			// If a smooth movement animation is in progress, cancel it
-			if( moveToPosCoroutine != null )
-			{
-				StopCoroutine( moveToPosCoroutine );
-				moveToPosCoroutine = null;
-			}
-		}
-
-		// Reposition the popup
-		public void OnDrag( PointerEventData data )
-		{
-			popupTransform.position = data.position;
-		}
-
-		// Smoothly translate the popup to the nearest edge
-		public void OnEndDrag( PointerEventData data )
-		{
-			int screenWidth = Screen.width;
-			int screenHeight = Screen.height;
-
-			Vector3 pos = popupTransform.position;
-
-			// Find distances to all four edges
-			float distToLeft = pos.x;
-			float distToRight = Mathf.Abs( pos.x - screenWidth );
-
-			float distToBottom = Mathf.Abs( pos.y );
-			float distToTop = Mathf.Abs( pos.y - screenHeight );
-
-			float horDistance = Mathf.Min( distToLeft, distToRight );
-			float vertDistance = Mathf.Min( distToBottom, distToTop );
-
-			// Find the nearest edge's coordinates
-			if( horDistance < vertDistance )
-			{
-				if( distToLeft < distToRight )
-					pos = new Vector3( halfSize.x, pos.y, 0f );
-				else
-					pos = new Vector3( screenWidth - halfSize.x, pos.y, 0f );
-
-				pos.y = Mathf.Clamp( pos.y, halfSize.y, screenHeight - halfSize.y );
+				pos = new Vector3(halfSize.x, pos.y, 0f);
 			}
 			else
 			{
-				if( distToBottom < distToTop )
-					pos = new Vector3( pos.x, halfSize.y, 0f );
-				else
-					pos = new Vector3( pos.x, screenHeight - halfSize.y, 0f );
-
-				pos.x = Mathf.Clamp( pos.x, halfSize.x, screenWidth - halfSize.x );
+				pos = new Vector3(screenWidth - halfSize.x, pos.y, 0f);
 			}
-
-			// If another smooth movement animation is in progress, cancel it
-			if( moveToPosCoroutine != null )
-				StopCoroutine( moveToPosCoroutine );
-
-			// Smoothly translate the popup to the specified position
-			moveToPosCoroutine = MoveToPosAnimation( pos );
-			StartCoroutine( moveToPosCoroutine );
-
-			isPopupBeingDragged = false;
+			pos.y = Mathf.Clamp(pos.y, halfSize.y, screenHeight - halfSize.y);
 		}
+		else
+		{
+			if (distToBottom < distToTop)
+			{
+				pos = new Vector3(pos.x, halfSize.y, 0f);
+			}
+			else
+			{
+				pos = new Vector3(pos.x, screenHeight - halfSize.y, 0f);
+			}
+			pos.x = Mathf.Clamp(pos.x, halfSize.x, screenWidth - halfSize.x);
+		}
+
+		// If another smooth movement animation is in progress, cancel it
+		if (moveToPosCoroutine != null)
+		{
+			StopCoroutine(moveToPosCoroutine);
+		}
+
+		// Smoothly translate the popup to the specified position
+		moveToPosCoroutine = MoveToPosAnimation(pos);
+		StartCoroutine(moveToPosCoroutine);
+
+		isPopupBeingDragged = false;
 	}
 }
