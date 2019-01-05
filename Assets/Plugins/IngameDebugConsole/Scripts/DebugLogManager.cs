@@ -55,6 +55,12 @@ public class DebugLogManager : MonoBehaviour
 	[SerializeField]
 	private string logcatArguments;
 
+	[SerializeField]
+	private int commandHistorySize = 100;
+
+	[SerializeField]
+	private KeyCode toggleConsoleShortcutKey=KeyCode.BackQuote;
+
 	[Header("Visuals")]
 	[SerializeField]
 	private DebugLogItem logItemPrefab;
@@ -136,6 +142,10 @@ public class DebugLogManager : MonoBehaviour
 	[SerializeField]
 	private DebugLogRecycledListView recycledListView;
 
+	// Command History
+	private LinkedList<string> inputCommandHistory;
+	private LinkedListNode<string> commandHistoryHead;
+
 	// Filters to apply to the list of debug entries to show
 	private bool isCollapseOn = false;
 	private DebugLogFilter logFilter = DebugLogFilter.All;
@@ -162,7 +172,6 @@ public class DebugLogManager : MonoBehaviour
 	// Required in ValidateScrollPosition() function
 	private PointerEventData nullPointerEventData;
 
-	private string lastCommand = "";
 
 #if !UNITY_EDITOR && UNITY_ANDROID
 		private DebugLogLogcatListener logcatListener;
@@ -195,6 +204,8 @@ public class DebugLogManager : MonoBehaviour
 				{ LogType.Exception, errorLog },
 				{ LogType.Assert, errorLog }
 			};
+
+			inputCommandHistory = new LinkedList<string>();
 
 			// Initially, all log types are visible
 			filterInfoButton.color = buttonSelectedColor;
@@ -281,10 +292,11 @@ public class DebugLogManager : MonoBehaviour
 	{
 		if (!isLogWindowVisible)
 		{
-			//Check to enable console - triple tap or right click on editor
-			bool showConsole = false;
+			//Check to enable console
+			bool showConsole, activateTextPrompt;
 
 #if UNITY_IOS || UNITY_ANDROID
+			//On mobile - triple tap
 			var tapCount = Input.touchCount;
 			if (tapCount == 3)
 			{
@@ -292,20 +304,44 @@ public class DebugLogManager : MonoBehaviour
 			}
 #endif
 #if UNITY_STANDALONE || UNITY_WEBGL || UNITY_EDITOR
-			showConsole = Input.GetMouseButtonDown(1);
+			//on desktop - right click or `
+			showConsole = Input.GetMouseButtonDown(1) || Input.GetKeyDown(toggleConsoleShortcutKey);
+			activateTextPrompt = showConsole;
 #endif
 
 			if (showConsole)
 			{
 				Show();
+
+				if (activateTextPrompt) {
+					commandInputField.ActivateInputField();
+				}
 			}
 		}
 		else {
-			//Listen for up-arrow to copy last command
-			if (commandInputField.isFocused && Input.GetKeyDown(KeyCode.UpArrow) && !string.IsNullOrEmpty(lastCommand))
-			{
-				commandInputField.text = lastCommand;
-				commandInputField.ForceLabelUpdate();
+			//Window is visible
+
+			if (inputCommandHistory.Count > 0) {
+				// Command history
+				if (Input.GetKeyDown(KeyCode.UpArrow))
+				{
+					if (commandHistoryHead == null)
+					{
+						commandHistoryHead = inputCommandHistory.First;
+						commandInputField.text = commandHistoryHead.Value;
+					}
+					else if (commandHistoryHead.Next != null)
+					{
+						commandHistoryHead = commandHistoryHead.Next;
+						commandInputField.text = commandHistoryHead.Value;
+					}
+				}
+					
+				if (Input.GetKeyDown(KeyCode.DownArrow) && commandHistoryHead != null && commandHistoryHead.Previous != null)
+				{
+					commandHistoryHead = commandHistoryHead.Previous;
+					commandInputField.text = commandHistoryHead.Value;
+				}
 			}
 		}
 	}
@@ -364,6 +400,13 @@ public class DebugLogManager : MonoBehaviour
 	// Command field input is changed, check if command is submitted
 	public char OnValidateCommand (string text, int charIndex, char addedChar)
 	{
+		// Auto complete - via Tab
+		if(addedChar=='\t')
+		{
+			commandInputField.text = DebugLogConsole.GetAutoCompleteCommand(text);
+			return '\0';
+		}
+
 		// If command is submitted
 		if (addedChar == '\n')
 		{
@@ -382,7 +425,7 @@ public class DebugLogManager : MonoBehaviour
 				SetSnapToBottom(true);
 
 				// Remember last command
-				lastCommand = text;
+				AddHistoryCommand(text);
 			}
 
 			return '\0';
@@ -853,5 +896,14 @@ public class DebugLogManager : MonoBehaviour
 		}
 		//enable our menu
 		debugButtonGroups[groupTitle].gameObject.SetActive(true);
+	}
+
+	private void AddHistoryCommand(string text)
+	{
+		if (inputCommandHistory.Count >= commandHistorySize) {
+			inputCommandHistory.RemoveLast();
+		}
+		inputCommandHistory.AddFirst(text);
+		commandHistoryHead = null;
 	}
 }

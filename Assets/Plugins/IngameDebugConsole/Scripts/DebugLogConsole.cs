@@ -718,4 +718,23 @@ public static class DebugLogConsole
 
 		return true;
 	}
+
+	public static string GetAutoCompleteCommand(string text)
+	{
+		foreach (var method in methods)
+		{
+			//search for next match
+			if (method.Key == text) {
+				continue;
+			}
+			//auto complete
+			if (text.Length>0 &&
+				method.Key.Length>text.Length &&
+				method.Key.Substring(0, text.Length) == text)
+			{
+				return method.Key;
+			}
+		}
+		return text;
+	}
 }
